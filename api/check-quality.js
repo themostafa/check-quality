@@ -1,5 +1,3 @@
-// api/check-quality.js
-
 const sharp = require('sharp');
 const formidable = require('formidable');
 
