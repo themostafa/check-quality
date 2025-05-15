@@ -1,53 +1,37 @@
+const express = require('express');
 const sharp = require('sharp');
-const formidable = require('formidable');
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method Not Allowed' });
-    return;
+app.use(express.json());
+
+app.post('/api/check-quality', async (req, res) => {
+  try {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', async () => {
+      const buffer = Buffer.concat(chunks);
+      const image = sharp(buffer);
+      const metadata = await image.metadata();
+
+      const isOk = metadata.width >= 2000 && metadata.height >= 2000;
+
+      res.json({
+        width: metadata.width,
+        height: metadata.height,
+        format: metadata.format,
+        qualityOk: isOk
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
+});
 
-  const form = formidable({ multiples: false });
+app.get('/', (req, res) => {
+  res.send('Image Quality API is running.');
+});
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      res.status(500).json({ error: 'Error parsing the files' });
-      return;
-    }
-
-    const { width_cm, height_cm } = fields;
-    const image = files.image;
-
-    if (!image || !width_cm || !height_cm) {
-      res.status(400).json({ error: 'Missing required fields' });
-      return;
-    }
-
-    try {
-      const metadata = await sharp(image.filepath).metadata();
-      const width_px = metadata.width;
-      const height_px = metadata.height;
-
-      const width_cm_num = parseFloat(width_cm);
-      const height_cm_num = parseFloat(height_cm);
-
-      const width_dpi = width_px / (width_cm_num / 2.54);
-      const height_dpi = height_px / (height_cm_num / 2.54);
-
-      const dpi = Math.min(width_dpi, height_dpi);
-
-      let quality;
-      if (dpi >= 300) {
-        quality = 'عالی';
-      } else if (dpi >= 150) {
-        quality = 'متوسط';
-      } else {
-        quality = 'ضعیف';
-      }
-
-      res.status(200).json({ dpi: Math.round(dpi), quality });
-    } catch (error) {
-      res.status(500).json({ error: 'Error processing the image' });
-    }
-  });
-};
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
